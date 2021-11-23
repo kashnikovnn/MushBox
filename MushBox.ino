@@ -1,4 +1,7 @@
 #include <DHT.h>
+#include <DHT_U.h>
+
+#include <ArduinoJson.h>
 
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
@@ -20,7 +23,13 @@ ESP8266WebServer server(80);
 const int led = 2;
 
 // датчик DHT
-uint8_t DHTPin = D8; 
+uint8_t DHTPin = D5; 
+
+uint8_t heaterPin = D1;
+uint8_t lightPin = D2;
+uint8_t vapePin = D3;
+uint8_t fanPin = D4;
+
                
 // инициализация датчика DHT.
 DHT dht(DHTPin, DHTTYPE); 
@@ -49,6 +58,14 @@ void handleNotFound() {
   digitalWrite(led, 0);
 }
 
+
+    boolean digitalToBoolean(uint8_t pin){
+      boolean result = false;
+      if (digitalRead(pin) == HIGH) result = true;
+      if (digitalRead(pin) == LOW) result = false;
+      return result;
+    }
+    
 void setup(void) {
   
   pinMode(DHTPin, INPUT);
@@ -84,7 +101,18 @@ void setup(void) {
   });
 
   server.on("/status",[](){
-        server.send(200, "text/plain", "");
+
+        DynamicJsonDocument doc(1024);
+        doc["temperature"] = dht.readTemperature();
+        doc["hymidity"] = dht.readHumidity();
+        doc["heater"] = digitalToBoolean(heaterPin);
+        doc["light"] = digitalToBoolean(lightPin);
+        doc["vape"] = digitalToBoolean(vapePin);
+        doc["fan"] = digitalToBoolean(fanPin);
+
+        String json;
+        serializeJson(doc, json);
+        server.send(200, "application/json", json);
     });
 
       server.on("/led_off",[](){
@@ -199,6 +227,6 @@ void loop(void) {
   
   server.handleClient();
   MDNS.update();
-
+  
 
 }
