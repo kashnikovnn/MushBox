@@ -30,10 +30,32 @@ uint8_t lightPin = D2;
 uint8_t vapePin = D3;
 uint8_t fanPin = D4;
 
+float minTemp = 25;
+float maxTemp = 27;
+
+float minHym = 30;
+float maxHym  = 50;
+
                
 // инициализация датчика DHT.
 DHT dht(DHTPin, DHTTYPE); 
 
+void checkSensors(){
+    if (dht.readTemperature()<minTemp){
+      digitalWrite(heaterPin,HIGH);
+    }
+    if (dht.readTemperature()>maxTemp){
+      digitalWrite(heaterPin,LOW);
+    }
+    
+    if (dht.readHumidity()<minHym){
+      digitalWrite(vapePin,HIGH);
+    }
+    if (dht.readHumidity()>maxHym){
+      digitalWrite(vapePin,LOW);
+    }
+  
+}
 
 void handleRoot() {
   digitalWrite(led, 1);
@@ -103,6 +125,8 @@ void setup(void) {
   server.on("/status",[](){
 
         DynamicJsonDocument doc(1024);
+
+        
         doc["temperature"] = dht.readTemperature();
         doc["hymidity"] = dht.readHumidity();
         doc["heater"] = digitalToBoolean(heaterPin);
@@ -115,40 +139,21 @@ void setup(void) {
         server.send(200, "application/json", json);
     });
 
-      server.on("/led_off",[](){
-        digitalWrite(led,0);
-        server.send(200, "text/plain", "Led_off");
+
+  server.on("/getSettings",[](){
+
+        DynamicJsonDocument doc(1024);
+        doc["minTemp"] = minTemp;
+        doc["maxTemp"] = maxTemp;
+
+        doc["minHym"] = minHym;
+        doc["maxHym "] = maxHym ;
+
+        String json;
+        serializeJson(doc, json);
+        server.send(200, "application/json", json);
     });
 
-  server.on("/disco",[](){
-
-        for (int i=1; i<20; i++)
-        {
-          digitalWrite(led,0);
-          delay(random(1000));
-          digitalWrite(led,1);
-          delay(random(1000));
-        }
-        
-        server.send(200, "text/plain", "Disco");
-    });
-
-  server.on("/gif", []() {
-    static const uint8_t gif[] PROGMEM = {
-      0x47, 0x49, 0x46, 0x38, 0x37, 0x61, 0x10, 0x00, 0x10, 0x00, 0x80, 0x01,
-      0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x2c, 0x00, 0x00, 0x00, 0x00,
-      0x10, 0x00, 0x10, 0x00, 0x00, 0x02, 0x19, 0x8c, 0x8f, 0xa9, 0xcb, 0x9d,
-      0x00, 0x5f, 0x74, 0xb4, 0x56, 0xb0, 0xb0, 0xd2, 0xf2, 0x35, 0x1e, 0x4c,
-      0x0c, 0x24, 0x5a, 0xe6, 0x89, 0xa6, 0x4d, 0x01, 0x00, 0x3b
-    };
-    char gif_colored[sizeof(gif)];
-    memcpy_P(gif_colored, gif, sizeof(gif));
-    // Set the background to a random set of colors
-    gif_colored[16] = millis() % 256;
-    gif_colored[17] = millis() % 256;
-    gif_colored[18] = millis() % 256;
-    server.send(200, "image/gif", gif_colored, sizeof(gif_colored));
-  });
 
   server.onNotFound(handleNotFound);
 
@@ -217,16 +222,15 @@ void setup(void) {
 }
 
 void loop(void) {
-
   Serial.print("Temperature = ");
   Serial.println(dht.readTemperature());
   Serial.print("Humidity = ");
   Serial.println(dht.readHumidity());
   delay(1000);
+  checkSensors();
 
   
   server.handleClient();
-  MDNS.update();
-  
+  MDNS.update();  
 
 }
