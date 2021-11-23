@@ -1,3 +1,5 @@
+#include <NTPClient.h>
+
 #include <DHT.h>
 #include <DHT_U.h>
 
@@ -39,6 +41,11 @@ float maxHym  = 50;
                
 // инициализация датчика DHT.
 DHT dht(DHTPin, DHTTYPE); 
+
+// Define NTP Client to get time
+const long utcOffsetInSeconds = 10800;
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
 
 void checkSensors(){
     if (dht.readTemperature()<minTemp){
@@ -89,6 +96,8 @@ void handleNotFound() {
     }
     
 void setup(void) {
+
+
   
   pinMode(DHTPin, INPUT);
   dht.begin();
@@ -124,9 +133,7 @@ void setup(void) {
 
   server.on("/status",[](){
 
-        DynamicJsonDocument doc(1024);
-
-        
+        DynamicJsonDocument doc(1024);        
         doc["temperature"] = dht.readTemperature();
         doc["hymidity"] = dht.readHumidity();
         doc["heater"] = digitalToBoolean(heaterPin);
@@ -219,6 +226,8 @@ void setup(void) {
 
   server.begin();
   Serial.println("HTTP server started");
+  timeClient.begin();
+  timeClient.update();
 }
 
 void loop(void) {
@@ -228,9 +237,20 @@ void loop(void) {
   Serial.println(dht.readHumidity());
   delay(1000);
   checkSensors();
-
+  getTime();
   
   server.handleClient();
   MDNS.update();  
 
+}
+
+void getTime(){
+
+  timeClient.update();
+  Serial.print(timeClient.getHours());
+  Serial.print(":");
+  Serial.print(timeClient.getMinutes());
+  Serial.print(":");
+  Serial.println(timeClient.getSeconds());
+  //Serial.println(timeClient.getFormattedTime());
 }
