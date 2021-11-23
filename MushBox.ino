@@ -140,6 +140,7 @@ void setup(void) {
         doc["light"] = digitalToBoolean(lightPin);
         doc["vape"] = digitalToBoolean(vapePin);
         doc["fan"] = digitalToBoolean(fanPin);
+        doc["time"] = timeClient.getFormattedTime();
 
         String json;
         serializeJson(doc, json);
@@ -252,5 +253,5 @@ void getTime(){
   Serial.print(timeClient.getMinutes());
   Serial.print(":");
   Serial.println(timeClient.getSeconds());
-  //Serial.println(timeClient.getFormattedTime());
+  Serial.println(timeClient.getFormattedTime());
 }
