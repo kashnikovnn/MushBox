@@ -9,9 +9,13 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
+
 
 #ifndef STASSID
-#define STASSID "Xoxolhouse"
+#define STASSID "XoxloMiMiMix"
+//#define STASSID "Xoxolhouse"
 #define STAPSK  "14881488"
 
 #define DHTTYPE DHT11
@@ -20,9 +24,12 @@
 const char* ssid = STASSID;
 const char* password = STAPSK;
 
+String JAVA_SERVER = "192.168.137.142:8080";
+
+WiFiClient wifiClient;
+
 ESP8266WebServer server(80);
 
-const int led = 2;
 
 // датчик DHT
 uint8_t DHTPin = D5; 
@@ -65,13 +72,10 @@ void checkSensors(){
 }
 
 void handleRoot() {
-  digitalWrite(led, 1);
   server.send(200, "text/plain", "hello from esp8266!\r\n");
-  digitalWrite(led, 0);
 }
 
 void handleNotFound() {
-  digitalWrite(led, 1);
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
@@ -84,7 +88,6 @@ void handleNotFound() {
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
   server.send(404, "text/plain", message);
-  digitalWrite(led, 0);
 }
 
 
@@ -102,9 +105,6 @@ void setup(void) {
   pinMode(DHTPin, INPUT);
   dht.begin();
 
-  
-  pinMode(led, OUTPUT);
-  digitalWrite(led, 0);
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -127,24 +127,8 @@ void setup(void) {
 
   server.on("/", handleRoot);
 
-  server.on("/inline", []() {
-    server.send(200, "text/plain", "this works as well");
-  });
-
   server.on("/status",[](){
-
-        DynamicJsonDocument doc(1024);        
-        doc["temperature"] = dht.readTemperature();
-        doc["hymidity"] = dht.readHumidity();
-        doc["heater"] = digitalToBoolean(heaterPin);
-        doc["light"] = digitalToBoolean(lightPin);
-        doc["vape"] = digitalToBoolean(vapePin);
-        doc["fan"] = digitalToBoolean(fanPin);
-        doc["time"] = timeClient.getFormattedTime();
-
-        String json;
-        serializeJson(doc, json);
-        server.send(200, "application/json", json);
+        server.send(200, "application/json", getJsonFromSensors());
     });
 
 
@@ -236,22 +220,55 @@ void loop(void) {
   Serial.println(dht.readTemperature());
   Serial.print("Humidity = ");
   Serial.println(dht.readHumidity());
-  delay(1000);
+  delay(60000);
   checkSensors();
   getTime();
+  postEspDataOnServer();
   
   server.handleClient();
   MDNS.update();  
 
 }
 
-void getTime(){
-
+String getTime(){  
+  String dateTime ;
   timeClient.update();
-  Serial.print(timeClient.getHours());
-  Serial.print(":");
-  Serial.print(timeClient.getMinutes());
-  Serial.print(":");
-  Serial.println(timeClient.getSeconds());
-  Serial.println(timeClient.getFormattedTime());
+  return timeClient.getFormattedTime();
+}
+
+void postEspDataOnServer(){
+
+  if (WiFi.status() == WL_CONNECTED) { //Check WiFi connection status
+    HTTPClient http;    //Declare object of class HTTPClient
+    String url = "http://" + JAVA_SERVER + "/espdata/save";
+    http.begin(wifiClient,url);     //Specify request destination
+    http.addHeader("Content-Type", "application/json");  //Specify content-type header
+ 
+    int httpCode = http.POST(getJsonFromSensors());   //Send the request
+    String payload = http.getString();                  //Get the response payload
+ 
+    Serial.println(httpCode);   //Print HTTP return code
+    Serial.println(payload);    //Print request response payload
+ 
+    http.end();  //Close connection
+  }else {
+ 
+    Serial.println("Error in WiFi connection");
+ 
+  }
+}
+
+String getJsonFromSensors(){
+  DynamicJsonDocument doc(1024);        
+        doc["temperature"] = dht.readTemperature();
+        doc["humidity"] = dht.readHumidity();
+        doc["heater"] = digitalToBoolean(heaterPin);
+        doc["light"] = digitalToBoolean(lightPin);
+        doc["vape"] = digitalToBoolean(vapePin);
+        doc["fan"] = digitalToBoolean(fanPin);
+        doc["time"] = timeClient.getFormattedTime();
+
+        String json;
+        serializeJson(doc, json);
+        return json;
 }
